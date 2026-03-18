@@ -1,0 +1,145 @@
+# ==========================================
+# TERRAFORM
+# ==========================================
+
+# Local state files - never commit, contain sensitive infrastructure data
+terraform.tfstate
+terraform.tfstate.backup
+
+# Terraform working directory
+.terraform/
+
+# Terraform lock file - safe to commit but excluded for flexibility
+# .terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Plan files - can contain sensitive data in plaintext
+*.tfplan
+*.plan
+
+# Variable files - may contain secrets, IPs, or sensitive config
+*.tfvars
+*.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Rendered template files (may contain injected secrets)
+*.rendered
+
+
+# ==========================================
+# ANSIBLE
+# ==========================================
+
+# Retry files generated on failed playbook runs
+*.retry
+
+# Dynamic inventory cache
+*.cache
+
+# Vault password files - never commit these
+.vault_pass
+.vault_password
+vault_pass.txt
+
+# Ansible sensitive variable files
+group_vars/all/vault.yml
+host_vars/*/vault.yml
+
+# Generated inventory files with real IPs injected
+inventory/hosts
+inventory.ini
+hosts.ini
+
+
+# ==========================================
+# SSH KEYS
+# ==========================================
+
+*.pem
+*.key
+id_rsa
+id_rsa.*
+*.pub
+
+
+# ==========================================
+# AWS CREDENTIALS
+# ==========================================
+
+.aws/
+credentials
+aws_credentials.txt
+.env.aws
+
+
+# ==========================================
+# DOCKER
+# ==========================================
+
+# Local environment variable files - may contain DB passwords, secrets
+.env
+.env.local
+.env.production
+.env.*
+
+# Docker local override files
+docker-compose.override.yml
+
+
+# ==========================================
+# PYTHON (Backend / Scripts)
+# ==========================================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+pip-debug.log
+
+
+# ==========================================
+# NODE / REACT (Frontend)
+# ==========================================
+
+node_modules/
+dist/
+build/
+.npm
+.eslintcache
+*.log
+
+
+# ==========================================
+# OS & EDITOR JUNK
+# ==========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+
+# Vim
+*.swp
+*.swo
