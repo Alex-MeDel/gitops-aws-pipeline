@@ -9,6 +9,7 @@ resource "aws_vpc" "the_vpc" {
 resource "aws_subnet" "thesub_zone" {
     vpc_id     = aws_vpc.the_vpc.id
     cidr_block = "10.0.1.0/24"
+    map_public_ip_on_launch = true # Assign reachable IP to EC2 instance
     tags       = { Name = "thesub-Zone" }
 }
 
@@ -30,6 +31,6 @@ resource "aws_route_table" "public_rt" {
 
 # Associate both subnets so instances can reach the internet during bootstrap
 resource "aws_route_table_association" "the_rta" {
-  subnet_id      = aws_subnet.brain_zone.id
+  subnet_id      = aws_subnet.thesub_zone.id
   route_table_id = aws_route_table.public_rt.id
 }
