@@ -1,0 +1,62 @@
+---
+- name: Test Docker and Compose Host Provisioning
+  hosts: all
+  become: true
+  
+  vars:
+    # 🔴 CHANGE THESE TWO LINES TO MATCH YOUR WORKSTATION SETUP
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "~/.ssh/mostepic_key.pub"
+    
+    # Optional: forces SSH to bypass host key verification for fast testing
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install Docker and Docker Compose V2
+      apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+
+    - name: Ensure Docker service is running and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create target application directory
+      file:
+        path: /opt/app
+        state: directory
+        mode: '0755'
+
+    - name: Create a dummy test compose file on the server
+      copy:
+        dest: /opt/app/docker-compose.yml
+        content: |
+          services:
+            web-test:
+              image: nginx:alpine
+              ports:
+                - "80:80"
+        mode: '0644'
+
+    - name: Run docker compose up
+      shell:
+        cmd: docker compose up -d
+        chdir: /opt/app
+
+    - name: Verify containers are active
+      shell:
+        cmd: docker ps
+      register: docker_output
+
+    - name: Display running containers
+      debug:
+        var: docker_output.stdout_lines
