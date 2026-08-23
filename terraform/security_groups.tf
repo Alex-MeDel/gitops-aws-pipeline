@@ -9,7 +9,7 @@ resource "aws_security_group" "the_sg" {
         to_port     = 22
         protocol    = "tcp"
     #    cidr_blocks = ["0.0.0.0/0"] # <-- Bootstrapping code (Change to one of other options after boostrapping phase)
-        cidr_blocks = ["76.184.239.32/32"] # Via IP whitelist only
+        cidr_blocks = ["IPADDRESS/32"] # Via IP whitelist only
     }
     # Allow HTTP for Web App
     ingress {
