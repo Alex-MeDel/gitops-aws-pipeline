@@ -9,7 +9,8 @@ resource "aws_security_group" "the_sg" {
         to_port     = 22
         protocol    = "tcp"
     #    cidr_blocks = ["0.0.0.0/0"] # <-- Bootstrapping code (Change to one of other options after boostrapping phase)
-        cidr_blocks = ["IPADDRESS/32"] # Via IP whitelist only
+    #    cidr_blocks = ["YOURPUBLICIP/32"] # Via IP whitelist only (Hardcoded)
+        cidr_blocks = ["${var.my_ip}/32"] # To be prompted for your public IP on terraform apply
     }
     # Allow HTTP for Web App
     ingress {
