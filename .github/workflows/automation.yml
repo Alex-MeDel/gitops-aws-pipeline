@@ -2,9 +2,10 @@ name: Terraform Automation
 
 on:
   workflow_dispatch: # Allows manual trigger from GitHub UI
-  push:
-    branches:
-      - main
+# Un comment the following lines to enable automatic trigger on push to main branch 
+#  push:
+#    branches:
+#      - main
 
 permissions:
   id-token: write   # Required to request the JWT token from GitHub OIDC
@@ -42,6 +43,7 @@ jobs:
       - name: Terraform Plan
         env:
           TF_VAR_my_ip: ${{ secrets.MY_IP }}
+          TF_VAR_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
         run: |
           terraform plan -no-color
 
@@ -49,5 +51,6 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_my_ip: ${{ secrets.MY_IP }}
+          TF_VAR_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
         run: |
           terraform apply -auto-approve -no-color

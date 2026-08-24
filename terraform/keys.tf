@@ -13,5 +13,5 @@
 
 resource "aws_key_pair" "the_key" {
     key_name   = var.key_name
-    public_key = file("~/.ssh/${var.key_name}.pub")
+    public_key = var.public_key
 }
