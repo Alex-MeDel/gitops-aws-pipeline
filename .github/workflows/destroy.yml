@@ -1,0 +1,50 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "destroy" to confirm resource teardown'
+        required: true
+        default: 'cancel'
+
+permissions:
+  id-token: write   # Required for AWS OIDC authentication
+  contents: read
+
+jobs:
+  terraform-destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify Confirmation Input
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "destroy" ]; then
+            echo "Destruction aborted. Input did not match 'destroy'."
+            exit 1
+          fi
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: |
+          terraform init
+
+      - name: Terraform Destroy
+        env:
+          TF_VAR_my_ip: ${{ secrets.MY_IP }}
+        run: |
+          terraform destroy -auto-approve -no-color

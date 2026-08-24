@@ -3,7 +3,7 @@ resource "aws_instance" "the_instance" {
     instance_type          = var.instance_type # Instance type from AWS, 
     subnet_id              = aws_subnet.thesub_zone.id # Subnets created in vpc.tf
     vpc_security_group_ids = [aws_security_group.the_sg.id] # This is from security_groups.tf
-    key_name               = aws_key_pair.mostepic_key.key_name  # This is part of SSH config
+    key_name               = aws_key_pair.the_key.key_name  # This is part of SSH config
     associate_public_ip_address = true   # This line will give the instance access to a public IP address for bootstraping
     iam_instance_profile = aws_iam_instance_profile.ec2_profile.name # IAM things
     tags                   = { Name = "The-Instance" } # This is for billing info

@@ -19,3 +19,21 @@ variable "instance_type" {
   type        = string
   default     = "t3.micro" # Free Tier eligible in most regions
 }
+
+variable "key_name" {
+  description = "Name of the existing AWS Key Pair or key resource identifier"
+  type        = string
+  default     = "mostepic_key"
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidr" {
+  description = "CIDR block for the public subnet"
+  type        = string
+  default     = "10.0.1.0/24"
+}

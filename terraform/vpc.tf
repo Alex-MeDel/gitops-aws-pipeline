@@ -1,6 +1,6 @@
 # Foundational Virtual Private Cloud (VPC)
 resource "aws_vpc" "the_vpc" {
-    cidr_block           = "10.0.0.0/16"
+    cidr_block           = var.vpc_cidr
     enable_dns_hostnames = true
     enable_dns_support   = true
     tags = { Name = "the-VPC" }
@@ -8,7 +8,7 @@ resource "aws_vpc" "the_vpc" {
 
 resource "aws_subnet" "thesub_zone" {
     vpc_id     = aws_vpc.the_vpc.id
-    cidr_block = "10.0.1.0/24"
+    cidr_block = var.public_subnet_cidr
     map_public_ip_on_launch = true # Assign reachable IP to EC2 instance
     tags       = { Name = "thesub-Zone" }
 }
