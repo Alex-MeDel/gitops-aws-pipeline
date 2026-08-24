@@ -1,5 +1,13 @@
-# This tells Terraform to build the infrastructure in the region set in the variables.tf file
-# in this case, us-east-1 (N.Virginia) given that it was the default region for our location
 provider "aws" {
     region = var.aws_region
+}
+
+terraform {
+  backend "s3" {
+    bucket         = "my-gitops-tf-state-5198121"
+    key            = "state/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
 }
