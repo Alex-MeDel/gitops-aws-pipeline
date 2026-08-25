@@ -1,67 +1,55 @@
 # gitops-aws-pipeline
 
-> Full-stack GitOps deployment pipeline — GitHub Actions → Terraform → Ansible → Docker on AWS.  
+> Full-stack GitOps deployment pipeline — GitHub Actions → Terraform → Ansible → Docker on AWS.
 > Zero manual clicks from commit to running application.
 
 ---
 
-## What This Is
+## Status (as of today)
 
-A fully automated CI/CD pipeline that provisions cloud infrastructure, configures servers, and deploys a three-tier containerized web application on AWS — triggered by a single `git push`. No manual console interaction after initial setup.
-
-This project demonstrates the complete DevOps delivery lifecycle:
-
-- **Infrastructure as Code** — Terraform provisions the entire AWS environment reproducibly
-- **Configuration as Code** — Ansible hardens the OS and prepares the server automatically
-- **Container Delivery** — Docker packages and runs the application stack
-- **Pipeline Orchestration** — GitHub Actions ties everything together with keyless OIDC authentication
+| Layer | Status |
+|---|---|
+| Terraform infrastructure (VPC, EC2, SG, IAM, S3) | ✅ Live |
+| Remote state (S3 + DynamoDB locking, encrypted) | ✅ Live |
+| GitHub Actions CI (OIDC, plan/apply/destroy) | ✅ Working, manual trigger only |
+| EC2 bootstrap (user_data → Docker installed) | ✅ Working, minimal by design |
+| Local app (React + FastAPI + PostgreSQL via docker-compose) | ⬜ Not started — next up |
+| Ansible provisioning/config | ⬜ Not started |
+| Ansible app deployment (docker-compose up on EC2) | ⬜ Not started |
+| Auto-trigger on push to `main` | ⬜ Disabled on purpose (commented out) until app + Ansible are ready |
 
 ---
 
-## Architecture
+## Architecture (target state — pieces marked ✅ are live now)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        GitHub Repository                        │
 │                                                                 │
-│   git push → GitHub Actions Workflow (.github/workflows/)       │
+│   git push (manual dispatch for now) → GitHub Actions           │
 │                          │                                      │
 │          ┌───────────────┼───────────────┐                      │
 │          ▼               ▼               ▼                      │
-│     OIDC Auth       terraform        ansible                    │
-│     (No keys)        apply          playbook                    │
+│     OIDC Auth ✅    terraform ✅      ansible ⬜                 │
+│     (No keys)        apply           playbook                   │
 └──────────┼───────────────┼───────────────┼──────────────────────┘
            │               │               │
            ▼               ▼               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                        AWS (us-east-1)                          │
 │                                                                 │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │                 VPC (10.0.0.0/16)                       │   │
-│   │                                                         │   │
-│   │   ┌─────────────────────────────────────────────────┐   │   │
-│   │   │         Public Subnet (10.0.1.0/24)             │   │   │
-│   │   │                                                 │   │   │
-│   │   │   ┌─────────────────────────────────────────┐   │   │   │
-│   │   │   │         EC2 (t2.micro)                  │   │   │   │
-│   │   │   │                                         │   │   │   │
-│   │   │   │   ┌──────────┐  ┌──────────┐            │   │   │   │
-│   │   │   │   │ Frontend │  │ Backend  │            │   │   │   │
-│   │   │   │   │  React   │  │ FastAPI  │            │   │   │   │
-│   │   │   │   │  :80     │  │  :8000   │            │   │   │   │
-│   │   │   │   └──────────┘  └──────────┘            │   │   │   │
-│   │   │   │         ┌──────────────┐                │   │   │   │
-│   │   │   │         │   Database   │                │   │   │   │
-│   │   │   │         │  PostgreSQL  │                │   │   │   │
-│   │   │   │         │   :5432      │                │   │   │   │
-│   │   │   │         └──────────────┘                │   │   │   │
-│   │   │   │    Docker Compose (managed by Ansible)  │   │   │   │
-│   │   │   └─────────────────────────────────────────┘   │   │   │
-│   │   └─────────────────────────────────────────────────┘   │   │
-│   └─────────────────────────────────────────────────────────┘   │
+│   VPC (10.0.0.0/16) ✅                                          │
+│     └─ Public Subnet (10.0.1.0/24) ✅                           │
+│          └─ EC2 t3.micro ✅ (Ubuntu 22.04, dynamic AMI lookup)   │
+│               ├─ user_data bootstrap ✅ → Docker installed only │
+│               │    (app deploy intentionally left to Ansible)   │
+│               └─ Frontend / Backend / Postgres containers ⬜    │
+│                    (docker-compose, not built yet)               │
 │                                                                 │
-│   S3 Bucket — Terraform Remote State                            │
-│   DynamoDB Table — State Locking                                │
+│   S3 — Terraform remote state (encrypted) ✅                    │
+│   DynamoDB — State locking ✅                                   │
+│   S3 — Bootstrap script storage ✅                               │
+│   IAM Role (EC2) — scoped to s3:GetObject on bootstrap bucket ✅ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,140 +57,108 @@ This project demonstrates the complete DevOps delivery lifecycle:
 
 ## Tech Stack
 
-| Layer | Technology | Role |
+| Layer | Technology | Status |
 |---|---|---|
-| **Pipeline** | GitHub Actions | Triggers workflow, manages OIDC auth, orchestrates all stages |
-| **Infrastructure** | Terraform | Provisions VPC, subnets, security groups, EC2, S3, DynamoDB |
-| **Configuration** | Ansible | Hardens OS, installs Docker, deploys application |
-| **Frontend** | React + Nginx | Serves the UI |
-| **Backend** | Python (FastAPI) | Handles API logic and database queries |
-| **Database** | PostgreSQL | Persistent data storage via Docker volume |
-| **Cloud** | AWS | Hosting environment |
-| **Auth** | OIDC (Keyless) | Zero hardcoded credentials — federated trust between GitHub and AWS IAM |
+| **Pipeline** | GitHub Actions (OIDC, manual dispatch) | ✅ Working |
+| **Infrastructure** | Terraform | ✅ Live |
+| **Bootstrap** | EC2 user_data → Docker/Docker Compose/AWS CLI | ✅ Working (minimal) |
+| **Configuration** | Ansible | ⬜ Not started |
+| **Frontend** | React + Nginx | ⬜ Not started |
+| **Backend** | Python (FastAPI) | ⬜ Not started |
+| **Database** | PostgreSQL | ⬜ Not started |
+| **Cloud** | AWS (us-east-1) | ✅ Live |
+| **Auth** | OIDC (keyless) — GitHub ↔ AWS IAM federated trust | ✅ Live |
 
 ---
 
-## Repository Structure
+## Repository Structure (current)
 
 ```
 gitops-aws-pipeline/
 │
 ├── .github/
 │   └── workflows/
-│       └── main.yml            # GitHub Actions pipeline definition
+│       ├── automation.yml      # Plan + apply, OIDC auth, manual dispatch
+│       └── destroy.yml         # Teardown, gated by typed "destroy" confirmation
 │
 ├── terraform/
-│   ├── main.tf                 # Provider config and backend (S3 + DynamoDB)
-│   ├── vpc.tf                  # VPC, subnets, internet gateway, route tables
-│   ├── security_groups.tf      # Ingress/egress rules
-│   ├── instances.tf            # EC2 instance definition
-│   ├── iam.tf                  # OIDC identity provider and IAM role
-│   ├── outputs.tf              # EC2 public IP output for Ansible
-│   └── variables.tf            # Input variables
+│   ├── main.tf                 # Provider config
+│   ├── variables.tf            # aws_region, my_ip, public_key, etc.
+│   ├── data.tf                 # Dynamic Ubuntu 22.04 AMI lookup
+│   ├── vpc.tf                  # VPC, subnet, IGW, route table
+│   ├── security_groups.tf      # SSH (IP-restricted via var), HTTP 80 open
+│   ├── keys.tf                 # EC2 key pair (public key from GitHub Secret)
+│   ├── instances.tf            # EC2 t3.micro + user_data bootstrap
+│   ├── iam.tf                  # EC2 IAM role, scoped to bootstrap bucket read
+│   ├── s3.tf                   # Bootstrap script bucket (random suffix)
+│   ├── outputs.tf              # Public IP, AMI ID
+│   └── scripts/
+│       └── the_bootstrap.sh    # Installs Docker/Compose/AWS CLI only
 │
-├── ansible/
-│   ├── playbook.yml            # Main playbook — hardens server, installs Docker
-│   └── inventory/
-│       └── hosts.ini           # Dynamically populated by pipeline (gitignored)
+├── ansible/                    # ⬜ not started
+├── app/                        # ⬜ not started
 │
-├── app/
-│   ├── frontend/               # React application
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   └── nginx.conf
-│   ├── backend/                # FastAPI application
-│   │   ├── main.py
-│   │   ├── requirements.txt
-│   │   └── Dockerfile
-│   └── docker-compose.yml      # Orchestrates all three containers
-│
-├── .gitignore
 └── README.md
 ```
 
+*(Terraform state backend — S3 + DynamoDB — is configured but not shown above; encryption and locking are enabled.)*
+
 ---
 
-## Pipeline Flow
-
-A `git push` to `main` triggers the following sequence — fully automated, zero manual steps:
+## Pipeline Flow (current, manual)
 
 ```
-1. GitHub Actions starts
+1. Trigger workflow manually (workflow_dispatch)
         │
         ▼
 2. OIDC authentication → AWS issues short-lived credentials
         │
         ▼
-3. terraform fmt & validate (linting)
+3. terraform init → remote state (S3 + DynamoDB lock)
         │
         ▼
-4. terraform apply → VPC, Security Groups, EC2 provisioned
+4. terraform plan → saved as artifact (-out=tfplan)
         │
         ▼
-5. EC2 Public IP captured from Terraform output
+5. terraform apply → applies the exact saved plan (not a re-plan)
         │
         ▼
-6. Ansible inventory dynamically populated with new IP
+6. EC2 boots → user_data installs Docker/Compose/AWS CLI
         │
         ▼
-7. Ansible playbook executes → Docker installed, server hardened
-        │
-        ▼
-8. docker-compose up -d → All three containers running
-        │
-        ▼
-9. Health check → Pipeline verifies application returns HTTP 200
-        │
-        ▼
-10. Done. Application live at EC2 Public IP.
+7. (STOPS HERE for now — no app, no Ansible yet)
 ```
 
----
-
-## Security Highlights
-
-**Keyless Authentication (OIDC)** — GitHub Actions authenticates to AWS via OpenID Connect federated trust. No AWS access keys or secret keys are stored anywhere. GitHub receives short-lived, scoped credentials per pipeline run.
-
-**Least Privilege IAM** — The IAM role assumed by the pipeline is scoped to only the permissions required for provisioning. No wildcard policies.
-
-**Remote State with Locking** — Terraform state is stored in S3 with DynamoDB locking to prevent concurrent state corruption.
-
-**No Hardcoded Values** — All sensitive configuration (database passwords, SSH keys) lives in GitHub Secrets and is injected at pipeline runtime. Nothing sensitive is committed to the repository.
+`destroy.yml` runs the same OIDC/init pattern but requires typing `"destroy"` as a manual confirmation input before it will tear anything down.
 
 ---
 
-## Definition of Success
+## Security Notes (current)
 
-This project is complete when:
-
-- A `git push` to `main` triggers the full pipeline with zero manual intervention
-- The pipeline provisions infrastructure, configures the server, and deploys the application end to end
-- The application survives a container restart with data intact (PostgreSQL volume persistence)
-- Re-running the pipeline against an unchanged codebase results in no changes (idempotency)
-- Zero AWS credentials exist anywhere in the repository or pipeline logs
+- **Keyless auth (OIDC)** — no AWS access keys anywhere, GitHub gets short-lived scoped credentials per run.
+- **Least-privilege IAM** — EC2 instance role can only `s3:GetObject` on its own bootstrap bucket. Nothing else.
+- **SSH locked to one IP** — value comes from `TF_VAR_my_ip`, stored as a GitHub Secret (`MY_IP`), not hardcoded in the repo.
+- **SSH key not hardcoded** — public key comes from `TF_VAR_public_key` / `EC2_PUBLIC_KEY` GitHub Secret, not read from a local file path anymore.
+- **State encrypted + locked** — S3 backend with encryption enabled, DynamoDB table prevents concurrent apply corruption.
+- **Plan/apply consistency** — apply step uses the saved plan file, so what gets applied is exactly what was planned, not a fresh re-plan.
+- **`db_password` reserved** — `TF_VAR_db_password` is planned as a GitHub Secret for when the Postgres container exists; not wired up yet since there's no app/db to configure.
 
 ---
 
-## Prerequisites (For Local Development)
+## Next Steps
+
+1. **Build the app locally** — React + FastAPI + PostgreSQL via `docker-compose`, confirmed working on laptop (API ↔ DB, UI ↔ API) before anything touches AWS.
+2. **Write the Ansible playbook** — install Docker/Compose (redundant-safe with user_data), copy `docker-compose.yml`, run `docker-compose up -d`.
+3. **Wire Ansible into the pipeline** — dynamic inventory from Terraform's EC2 IP output.
+4. **Add health check step** — pipeline verifies app returns HTTP 200 post-deploy.
+5. **Only then** consider re-enabling the push trigger on `main`.
+
+---
+
+## Prerequisites (Local Dev)
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) >= 2.14
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) >= 2.14 (not yet used)
 - [Docker](https://docs.docker.com/get-docker/) + Docker Compose
-- AWS CLI configured with credentials
-- An SSH key pair for EC2 access
-
----
-
-## Status
-
-🚧 **In active development** — See commit history for progress.
-
-| Phase | Status |
-|---|---|
-| Local proof of concept (Docker Compose) | 🟡 In progress |
-| Phase I — Terraform infrastructure | ⬜ Not started |
-| Phase II — Ansible configuration | ⬜ Not started |
-| Phase III — Docker application deployment | ⬜ Not started |
-| Phase IV — GitHub Actions pipeline | ⬜ Not started |
-| Health check & validation | ⬜ Not started |
-| Documentation & architecture diagram | 🟡 In progress |
+- AWS CLI configured with credentials (local runs only — pipeline uses OIDC)
+- An SSH key pair for EC2 access (public key goes in `TF_VAR_public_key` locally, or GitHub Secret `EC2_PUBLIC_KEY` in CI)
