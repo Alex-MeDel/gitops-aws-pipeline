@@ -2,16 +2,18 @@ name: Full Stack Deployment (GitOps)
 
 on:
   workflow_dispatch:
-  #push:
-  #  branches:
-  #    - main
+#  push:
+#    branches:
+#      - main
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  # Job 1: Infrastructure via Terraform
+  # ============================================================================
+  # Job 1: Infrastructure Provisioning via Terraform
+  # ============================================================================
   terraform:
     name: Terraform Provisioning
     runs-on: ubuntu-latest
@@ -58,7 +60,9 @@ jobs:
           IP=$(terraform output -raw the_public_ip)
           echo "EC2_IP=$IP" >> $GITHUB_OUTPUT
 
+  # ============================================================================
   # Job 2: Configuration & Application Deployment via Ansible
+  # ============================================================================
   ansible:
     name: Ansible Configuration & App Deploy
     needs: terraform
