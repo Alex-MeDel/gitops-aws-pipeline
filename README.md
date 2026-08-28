@@ -1,84 +1,131 @@
 # Full-Stack GitOps Deployment on AWS
 
-This repository contains a fully automated GitOps pipeline that provisions AWS infrastructure, configures the host environment, and deploys a containerized microservices application entirely through GitHub Actions.
+A single GitHub Actions workflow that provisions AWS infrastructure with Terraform, waits for the instance to come up, then hands off to Ansible to build and run a containerized app on it — triggered by one button click, zero manual steps in between.
 
-The project demonstrates Infrastructure as Code (IaC), Configuration Management, and Zero-Trust CI/CD deployment principles.
-
-## 🚀 Architecture & Technologies
-
-### 1. CI/CD & Automation (GitHub Actions)
-* **Zero-Trust Authentication:** Utilizes AWS OIDC (OpenID Connect) for authentication, eliminating the need for long-lived, hardcoded AWS IAM user credentials.
-* **Dynamic Security:** The workflow dynamically fetches the GitHub Actions runner's IP address and injects it into the AWS Security Group for Just-In-Time (JIT) SSH access, maintaining a locked-down perimeter.
-* **Unified Pipeline:** A single-job runner executes both Terraform and Ansible to preserve state and IP consistency throughout the deployment lifecycle.
-
-### 2. Infrastructure as Code (Terraform)
-* **AWS Foundation:** Automates the creation of a VPC, subnets, routing tables, and an EC2 instance (`ami-ubuntu`).
-* **Remote State Management:** Utilizes an S3 bucket for backend state storage and a DynamoDB table for state locking to prevent concurrent deployment collisions.
-* **Least-Privilege IAM:** Implements strict, customized IAM roles and instance profiles rather than relying on broad administrative permissions.
-
-### 3. Configuration Management (Ansible)
-* **Host Bootstrapping:** Automates package updates and the installation of Docker and Docker Compose V2 on the raw EC2 instance.
-* **Code Synchronization:** Securely copies the application repository to the remote host.
-* **Container Orchestration:** Executes the application build and deployment via Compose.
-
-### 4. Application Layer (Docker Compose)
-* **Backend:** A lightweight Python **FastAPI** service handling asynchronous HTTP requests.
-* **Frontend/Proxy:** An **Nginx** container serving a static HTML dashboard and acting as a reverse proxy to route `/api/*` requests internally to the backend.
-* **Network Isolation:** The backend API is completely hidden from the public internet, exposed only to the Nginx reverse proxy via an internal Docker bridge network.
+**The point of this project is the automation, not the app.** The app is a deliberately thin two-container proof-of-concept (no database) used to prove the pipeline actually deploys something real end to end. See [Scope](#scope) below.
 
 ---
 
-## 📁 Repository Structure
+## Architecture
+
+```
+GitHub Actions (workflow_dispatch)
+        │
+        ├─ OIDC auth → short-lived AWS credentials (no stored keys)
+        ├─ Fetch runner's public IP → passed to Terraform as var.ci_runner_ip
+        │
+        ▼
+Terraform apply
+        ├─ VPC, public subnet, IGW, route table
+        ├─ Security Group — SSH allowed from var.my_ip + var.ci_runner_ip only, HTTP 80 open
+        ├─ EC2 (t3.micro, dynamic Ubuntu 22.04 AMI lookup)
+        ├─ IAM role — scoped to s3:GetObject on the bootstrap bucket only
+        └─ S3 (encrypted, remote state) + DynamoDB (state locking)
+        │
+        ▼
+Wait for SSH to come up (retry loop, ~5 min max)
+        │
+        ▼
+Ansible playbook (over SSH, key from GitHub Secret)
+        ├─ apt install docker.io, docker-compose-v2
+        ├─ copy app/ → /opt/gitops-app on the instance
+        └─ docker compose up -d --build   (images built ON the instance)
+        │
+        ▼
+App live at http://<EC2_PUBLIC_IP>
+```
+
+---
+
+## Scope
+
+This was built to prove a specific thing: **can one click take you from nothing to a running app on AWS, with no manual AWS console work, no long-lived credentials, and infrastructure that's fully reproducible?** Yes — that's the deliverable.
+
+What's intentionally *not* here:
+
+- **No database.** The app is two containers (FastAPI + Nginx), not three. `main.py`'s `/api/data` response even hardcodes `"db_status": "connected"` — there's no actual DB behind it. Adding Postgres would mean solving data persistence, volumes, and backup/restore, which is a different (and bigger) problem than the one this project is about.
+- **No automated health check.** The pipeline's final step prints a success message unconditionally — it doesn't actually curl `/api/health` to confirm the app responded. The endpoint exists; the pipeline just doesn't check it yet.
+- **SSH access list doesn't self-clean.** Every pipeline run adds the current CI runner's IP to the security group alongside your own; nothing removes IPs from previous runs. Fine for a personal project, would need addressing for anything long-lived.
+
+---
+
+## Repository Structure
 
 ```text
 .
 ├── .github/workflows/
-│   ├── automation.yml         # General automation triggers
-│   ├── destroy.yml            # Safe teardown pipeline with manual confirmation
-│   ├── full-deploy.yml        # Main infrastructure and application deployment pipeline
-│   └── test-oidc.yml          # OIDC authentication test workflow
+│   ├── full-deploy.yml        # Main pipeline: Terraform apply → wait for SSH → Ansible deploy
+│   ├── destroy.yml            # Teardown, gated by typed "destroy" confirmation
+│   ├── automation.yml         # Terraform plan/apply only (no Ansible/app step)
+│   └── test-oidc.yml          # Diagnostic — verifies OIDC auth works via `aws sts get-caller-identity`
 ├── ansible/
-│   └── playbook.yml           # Configuration management and app deployment steps
+│   └── playbook.yml           # Installs Docker, copies app/, runs docker compose up --build
 ├── app/
-│   ├── backend/               # FastAPI application, dependencies, and Dockerfile
-│   ├── frontend/              # HTML dashboard, Nginx reverse proxy config, and Dockerfile
-│   └── docker-compose.yml     # Multi-container orchestration
+│   ├── backend/                # FastAPI — /api/health, /api/data
+│   ├── frontend/                # Static HTML + Nginx reverse proxy (routes /api/* to backend)
+│   └── docker-compose.yml     # backend (internal only) + frontend (port 80, public)
 ├── terraform/
-│   ├── scripts/
-│   │   └── the_bootstrap.sh   # Initialization script
-│   ├── data.tf                # AWS data sources
-│   ├── iam.tf                 # Least-privilege IAM Roles and OIDC policies
-│   ├── instances.tf           # EC2 instance provisioning
-│   ├── keys.tf                # SSH key pair management
-│   ├── main.tf                # Core AWS provider and backend config
-│   ├── outputs.tf             # Public IP and resource ID outputs
-│   ├── s3.tf                  # S3 bucket configuration
-│   ├── security_groups.tf     # Dynamic and static firewall rules
-│   ├── terraform.tfvars.example # Template for variable inputs
-│   ├── variables.tf           # Variable definitions
-│   └── vpc.tf                 # Virtual Private Cloud and routing setup
-├── .gitignore                 # Git ignore file
-└── README.md                  # Project documentation
+│   ├── main.tf                 # Provider + S3/DynamoDB backend config
+│   ├── vpc.tf                  # VPC, subnet, IGW, routing
+│   ├── security_groups.tf     # SSH restricted to var.my_ip + var.ci_runner_ip, HTTP open
+│   ├── instances.tf            # EC2 provisioning + user_data bootstrap
+│   ├── iam.tf                  # Least-privilege IAM role/instance profile
+│   ├── keys.tf                 # EC2 key pair (public key from GitHub Secret)
+│   ├── s3.tf                   # Bootstrap script bucket
+│   ├── data.tf                 # Dynamic AMI lookup
+│   ├── outputs.tf              # Public IP output, consumed by the workflow
+│   ├── variables.tf
+│   ├── terraform.tfvars.example
+│   └── scripts/the_bootstrap.sh  # user_data — installs Docker only, app deploy left to Ansible
+├── .gitignore
+└── README.md
 ```
+
+---
+
 ## How to Run
 
-1. Navigate to the Actions tab in GitHub.
-2. Select the Full Stack Deployment (GitOps) workflow.
-3. Click Run workflow.
-4. Once completed, the deployment summary will output the public URL of the live dashboard.
+1. Go to **Actions** → **Full Stack Deployment (GitOps)** → **Run workflow**.
+2. Wait for it to finish — it provisions the instance, waits for SSH, then deploys the app.
+3. Visit `http://<EC2_PUBLIC_IP>` (shown in the workflow's final step log).
 
-To tear down the environment:
-1. Select the Terraform Destroy workflow.
-2. Type destroy in the required confirmation input to prevent accidental deletions.
-3. Click Run workflow to safely dismantle all AWS resources.
+To tear down:
 
-### ⚙️ Setup & Prerequisites
+1. Go to **Actions** → **Terraform Destroy** → **Run workflow**.
+2. Type `destroy` in the confirmation input.
+3. Run — this removes all AWS resources.
 
-To run this pipeline, the following secrets must be configured in the GitHub Repository:
+`Test AWS OIDC Connection` is a standalone diagnostic, not part of the deploy flow — run it on its own if you need to verify GitHub↔AWS auth is working before debugging anything else.
 
-| Secret Name | Description |
+---
+
+## Required GitHub Secrets
+
+| Secret | Used by | Purpose |
+|---|---|---|
+| `AWS_ROLE_ARN` | All workflows | ARN of the IAM role GitHub assumes via OIDC |
+| `MY_IP` | `full-deploy.yml`, `automation.yml`, `destroy.yml` | Your IP (CIDR), allowed for manual SSH |
+| `EC2_PUBLIC_KEY` | Terraform | Public key injected into the instance's `authorized_keys` |
+| `EC2_SSH_KEY` | `full-deploy.yml` | Private key Ansible uses to SSH in and deploy |
+
+The workflow also computes `TF_VAR_ci_runner_ip` at runtime (the GitHub runner's own IP) so Ansible can reach the instance over SSH during the same run — this one isn't a secret, it's fetched fresh each time via `curl ifconfig.me`.
+
+---
+
+## Stack
+
+| Layer | Tech |
 |---|---|
-AWS_ROLE_ARN| The ARN of the AWS IAM Role configured for GitHub OIDC federation.|
-MY_IP| Your local workstation IP address formatted as a CIDR (e.g., 203.0.113.5/32) for manual SSH access. |
-EC2_PUBLIC_KEY|The public SSH key to be injected into the EC2 authorized_keys file by Terraform.|
-EC2_SSH_KEY| The private SSH key used by Ansible via GitHub Actions to connect and configure the instance.|
+| CI/CD | GitHub Actions, OIDC (keyless AWS auth) |
+| Infra | Terraform (VPC, EC2, SG, IAM, S3, DynamoDB) |
+| Config management | Ansible |
+| App | FastAPI (backend) + Nginx reverse proxy + static HTML (frontend) |
+| Container runtime | Docker / Docker Compose V2, built on-instance |
+
+---
+
+## Possible Next Steps
+
+- Add an actual `curl` health check against `/api/health` before the pipeline reports success.
+- Clean up stale runner IPs from the security group on each run (or on `destroy`).
+- Swap the hardcoded `db_status: "connected"` for a real database if the project scope ever grows.
