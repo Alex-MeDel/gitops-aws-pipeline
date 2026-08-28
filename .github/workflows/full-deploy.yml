@@ -2,9 +2,9 @@ name: Full Stack Deployment (GitOps)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  #push:
+  #  branches:
+  #    - main
 
 permissions:
   id-token: write
@@ -48,7 +48,7 @@ jobs:
       - name: Export EC2 Public IP Output
         id: get_ip
         run: |
-          IP=$(terraform output -raw instance_public_ip)
+          IP=$(terraform output -raw the_public_ip)
           echo "EC2_IP=$IP" >> $GITHUB_OUTPUT
 
   # Job 2: Configuration & Application Deployment via Ansible
