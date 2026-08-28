@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitOps AWS Pipeline Dashboard</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #1e293b;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 450px;
+      text-align: center;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      background-color: #334155;
+      color: #94a3b8;
+    }
+    .status-badge.online {
+      background-color: #065f46;
+      color: #34d399;
+    }
+    pre {
+      background: #0b1120;
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: left;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      color: #38bdf8;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="status" class="status-badge">Checking API...</div>
+    <h2>AWS GitOps Dashboard</h2>
+    <p>Automated with Terraform, Ansible & GitHub Actions</p>
+    <pre id="data-display">Loading backend data...</pre>
+    <button onclick="fetchData()">Refresh Data</button>
+  </div>
+
+  <script>
+    async function fetchData() {
+      const statusBadge = document.getElementById("status");
+      const display = document.getElementById("data-display");
+
+      try {
+        const healthRes = await fetch("/api/health");
+        if (healthRes.ok) {
+          statusBadge.textContent = "Backend: Connected";
+          statusBadge.className = "status-badge online";
+        }
+
+        const dataRes = await fetch("/api/data");
+        const data = await dataRes.json();
+        display.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        statusBadge.textContent = "Backend: Offline";
+        statusBadge.className = "status-badge";
+        display.textContent = "Error communicating with backend API.";
+      }
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>

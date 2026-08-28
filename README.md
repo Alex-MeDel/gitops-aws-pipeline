@@ -30,7 +30,7 @@
 │                          │                                      │
 │          ┌───────────────┼───────────────┐                      │
 │          ▼               ▼               ▼                      │
-│     OIDC Auth ✅    terraform ✅      ansible ⬜                 │
+│     OIDC Auth ✅    terraform ✅      ansible ⬜                │
 │     (No keys)        apply           playbook                   │
 └──────────┼───────────────┼───────────────┼──────────────────────┘
            │               │               │
@@ -40,16 +40,16 @@
 │                                                                 │
 │   VPC (10.0.0.0/16) ✅                                          │
 │     └─ Public Subnet (10.0.1.0/24) ✅                           │
-│          └─ EC2 t3.micro ✅ (Ubuntu 22.04, dynamic AMI lookup)   │
+│          └─ EC2 t3.micro ✅ (Ubuntu 22.04, dynamic AMI lookup)  │
 │               ├─ user_data bootstrap ✅ → Docker installed only │
 │               │    (app deploy intentionally left to Ansible)   │
 │               └─ Frontend / Backend / Postgres containers ⬜    │
-│                    (docker-compose, not built yet)               │
+│                    (docker-compose, not built yet)              │
 │                                                                 │
 │   S3 — Terraform remote state (encrypted) ✅                    │
 │   DynamoDB — State locking ✅                                   │
-│   S3 — Bootstrap script storage ✅                               │
-│   IAM Role (EC2) — scoped to s3:GetObject on bootstrap bucket ✅ │
+│   S3 — Bootstrap script storage ✅                              │
+│   IAM Role (EC2) — scoped to s3:GetObject on bootstrap bucket ✅│
 └─────────────────────────────────────────────────────────────────┘
 ```
 

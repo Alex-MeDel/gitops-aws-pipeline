@@ -11,7 +11,8 @@ resource "aws_instance" "the_instance" {
 
     # CONFIGURE EVERYTHING ON STARTUP!!!
     # Passes the dynamic S3 bucket ID to the bash script
-    user_data = templatefile("${path.module}/scripts/the_bootstrap.sh", {
-      bucket_name = aws_s3_bucket.bootstrap.id # This is configured in s3.tf
-    })
+    # Decided to use a full Ansible playbook for the bootstrap instead of just a bash script, but this is still here for reference
+    #user_data = templatefile("${path.module}/scripts/the_bootstrap.sh", {
+    #  bucket_name = aws_s3_bucket.bootstrap.id # This is configured in s3.tf
+    #})
 }
