@@ -49,10 +49,13 @@ jobs:
 
       - name: Terraform Apply
         env:
-          TF_VAR_my_ip: ${{ secrets.MY_IP }}
-          TF_VAR_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-          TF_VAR_ci_runner_ip: ${{ steps.runner_ip.outputs.RUNNER_CIDR }}
-        run: terraform apply -auto-approve -no-color -input=false
+            TF_VAR_my_ip: ${{ secrets.MY_IP }}
+            TF_VAR_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
+        run: |
+            RUNNER_IP=$(curl -s https://ifconfig.me)
+            export TF_VAR_ci_runner_ip="${RUNNER_IP}/32"
+            echo "Using CI Runner IP: $TF_VAR_ci_runner_ip"
+            terraform apply -auto-approve -no-color -input=false
 
       - name: Export EC2 Public IP Output
         id: get_ip
