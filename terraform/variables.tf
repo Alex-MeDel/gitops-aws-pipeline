@@ -7,12 +7,13 @@ variable "aws_region" {
 variable "my_ip" {
   description = "Please enter your public IP for SSH whitelist: "
   type        = string
-
-  validation {
+  
+  # Removed, subnet will be included in github secrets instead
+  #validation {
   # This regex checks for 4 numbers (0-255) separated by periods
-  condition     = can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", var.my_ip))
-  error_message = "The IP address must be a valid IPv4 address (e.g., 198.51.100.12) without any subnet mask or spaces."
-  }
+  #condition     = can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", var.my_ip))
+  #error_message = "The IP address must be a valid IPv4 address (e.g., 198.51.100.12) without any subnet mask or spaces."
+  #}
 }
 variable "instance_type" {
   description = "EC2 instance type"
