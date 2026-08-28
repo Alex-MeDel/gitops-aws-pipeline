@@ -43,3 +43,10 @@ variable "public_key" {
   type        = string
   sensitive   = true
 }
+
+# Part of GitHub Actions ansible ssh fix
+variable "ci_runner_ip" {
+  description = "The public IP of the GitHub Actions runner (CIDR format)"
+  type        = string
+  default     = "127.0.0.1/32" # Fallback dummy value for local runs
+}

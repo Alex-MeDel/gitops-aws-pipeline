@@ -10,8 +10,10 @@ resource "aws_security_group" "the_sg" {
         protocol    = "tcp"
     #    cidr_blocks = ["0.0.0.0/0"] # <-- Bootstrapping code (Change to one of other options after boostrapping phase)
     #    cidr_blocks = ["YOURPUBLICIP/32"] # Via IP whitelist only (Hardcoded)
-        cidr_blocks = ["${var.my_ip}/32"] # To be prompted for your public IP on terraform apply
+        # Part of GitHub Actions ansible ssh fix (var.ci_runner_ip)
+        cidr_blocks = ["${var.my_ip}/32", "${var.ci_runner_ip}/32"] # To be prompted for your public IP on terraform apply
     }
+    
     # Allow HTTP for Web App
     ingress {
     from_port   = 80
