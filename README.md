@@ -124,6 +124,24 @@ The workflow also computes `TF_VAR_ci_runner_ip` at runtime (the GitHub runner's
 
 ---
 
+## Security Decisions
+
+A few of the infrastructure choices here were made deliberately rather than defaulted into. Worth stating why.
+
+**OIDC instead of static AWS access keys.** GitHub Actions authenticates to AWS via OpenID Connect federation, not a stored `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` pair. The workflow requests a short-lived, per-run token from GitHub's OIDC provider, which AWS exchanges for temporary credentials scoped to that run. There's nothing long-lived to leak, rotate, or accidentally commit — if a secret gets exposed, it's a token that's already expired by the time anyone could use it.
+
+**IAM scoped to one action on one resource.** The EC2 instance role only has `s3:GetObject` on its own bootstrap bucket — not read/write, not other buckets, not any other service. The blast radius of a compromised instance is "can read one script from one bucket," not "can touch the AWS account." Same principle applied to the OIDC role itself: it's scoped to what Terraform actually needs to provision, not broad admin access.
+
+**SSH restricted to known IPs, not open to the internet.** The security group only allows port 22 from `var.my_ip` (your workstation) and `var.ci_runner_ip` (fetched fresh each pipeline run). Port 80 is open, because that's the actual application surface meant to be public — but the management plane (SSH) isn't exposed to `0.0.0.0/0` the way a lot of quick EC2 setups default to.
+
+**No credentials or IPs hardcoded in the repo.** `MY_IP`, `EC2_PUBLIC_KEY`, and `EC2_SSH_KEY` all live in GitHub Secrets, injected as `TF_VAR_*` environment variables at runtime — never written to disk in the repo, never visible in `git log`. The only thing computed inline is the CI runner's IP, which isn't sensitive.
+
+**Remote state, encrypted and locked.** Terraform state — which can contain sensitive values — lives in an encrypted S3 bucket rather than a local `.tfstate` file that could end up committed by accident. DynamoDB handles state locking, so two `apply` runs can't race and corrupt each other.
+
+None of this makes the project "a security project" — it's the same reasoning any DevOps setup should apply by default. But it's deliberate, not accidental, and worth being able to explain in those terms.
+
+---
+
 ## Possible Next Steps
 
 - Add an actual `curl` health check against `/api/health` before the pipeline reports success.
