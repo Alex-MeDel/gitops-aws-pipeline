@@ -1,20 +1,16 @@
 ---
-- name: Test Docker and Compose Host Provisioning
-  hosts: all
-  become: true
-  
-  vars:
-    # 🔴 CHANGE THESE TWO LINES TO MATCH YOUR WORKSTATION SETUP
-    ansible_user: ubuntu
-    ansible_ssh_private_key_file: "~/.ssh/mostepic_key.pub"
-    
-    # Optional: forces SSH to bypass host key verification for fast testing
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+# This will install container dependencies, and does multi container launch with docker compose
+- name: Deploy Containerized Application to EC2 instance
+  hosts: all # This means to target all hosts in inventory (-i <IP>, or -i <inventory_file>)
+  become: true # Everything ran as sudo
 
   tasks:
-    - name: Update apt cache
+    # Repo prep
+    - name: Update apt cache 
+      # This is like running sudo apt update
       apt:
         update_cache: yes
+        # Skip update if apt cache was already refreshed within the last hour (3600s) - AI recommendation
         cache_valid_time: 3600
 
     - name: Install Docker and Docker Compose V2
@@ -25,37 +21,37 @@
         state: present
 
     - name: Ensure Docker service is running and enabled
+      # Equivalent to 'sudo systemctl enable --now docker'
       service:
         name: docker
-        state: started
-        enabled: yes
+        state: started # Makes sure the service is running
+        enabled: yes   # Ensures the service starts if reboot
 
-    - name: Create target application directory
+    - name: Ensure target application directory exists
+      # Creates the directory /opt/gitops-app on the remote host if it doesn't exist
       file:
-        path: /opt/app
+        path: /opt/gitops-app
         state: directory
-        mode: '0755'
+        mode: '0755' # Permissions for the directory Read/Write/Execute for owner, Read/Execute for group and others
 
-    - name: Create a dummy test compose file on the server
+    - name: Synchronize full application directory to remote host
+    # This makes sure to transfer the backend, frontend and docker-compose.yml files
       copy:
-        dest: /opt/app/docker-compose.yml
-        content: |
-          services:
-            web-test:
-              image: nginx:alpine
-              ports:
-                - "80:80"
-        mode: '0644'
+        src: ../app/ # Local source dir relative to the playbook location
+        dest: /opt/gitops-app/ # remote destination dir on the EC2 instance
+        mode: '0644' # Permissions for the files Read/Write for owner, Read for group and others
 
-    - name: Run docker compose up
+    - name: Build and run the multi-container application
+      # Builds container images and starts the containers in detached mode
       shell:
-        cmd: docker compose up -d
-        chdir: /opt/app
+        cmd: docker compose up -d --build
+        chdir: /opt/gitops-app # runs command in the app folder
 
-    - name: Verify containers are active
+    - name: Verify running containers
+      # Queries the docker daemon to check for status of containers
       shell:
         cmd: docker ps
-      register: docker_output
+      register: docker_output # Puts the command stdout/stderr into a variable for later use
 
     - name: Display running containers
       debug:

@@ -1,0 +1,104 @@
+name: Full Stack Deployment (GitOps)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Job 1: Infrastructure via Terraform
+  terraform:
+    name: Terraform Provisioning
+    runs-on: ubuntu-latest
+    outputs:
+      ec2_public_ip: ${{ steps.get_ip.outputs.EC2_IP }}
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init -no-color
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_my_ip: ${{ secrets.MY_IP }}
+          TF_VAR_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
+        run: terraform apply -auto-approve -no-color
+
+      - name: Export EC2 Public IP Output
+        id: get_ip
+        run: |
+          IP=$(terraform output -raw instance_public_ip)
+          echo "EC2_IP=$IP" >> $GITHUB_OUTPUT
+
+  # Job 2: Configuration & Application Deployment via Ansible
+  ansible:
+    name: Ansible Configuration & App Deploy
+    needs: terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+
+      - name: Setup SSH Private Key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Wait for SSH to be Ready on EC2
+        env:
+          HOST: ${{ needs.terraform.outputs.ec2_public_ip }}
+        run: |
+          echo "Waiting for SSH to become available on $HOST..."
+          for i in {1..30}; do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i ~/.ssh/id_rsa ubuntu@$HOST 'echo ready'; then
+              echo "SSH is up and responding!"
+              break
+            fi
+            echo "Waiting for SSH connection... retry $i"
+            sleep 10
+          done
+
+      - name: Run Ansible Playbook
+        env:
+          HOST: ${{ needs.terraform.outputs.ec2_public_ip }}
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          ansible-playbook -i "$HOST," \
+            -u ubuntu \
+            --private-key ~/.ssh/id_rsa \
+            ansible/playbook.yml
+
+      - name: Deployment Success Summary
+        run: |
+          echo "Application successfully deployed!"
+          echo "Dashboard URL: http://${{ needs.terraform.outputs.ec2_public_ip }}"
